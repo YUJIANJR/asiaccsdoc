@@ -3,406 +3,335 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>各系所成績分佈分析</title>
+    <title>文件收發登記系統</title>
+    
+    <!-- 引入 Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- 引入資料標籤外掛 -->
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+    
+    <!-- 引入 React 和 ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <!-- 引入 Babel 用於解析 JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
-        body { font-family: 'Noto Sans TC', sans-serif; }
+        /* 簡單的淡入動畫 */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
     </style>
 </head>
-<body class="bg-gray-50 text-gray-800 min-h-screen">
+<body class="bg-slate-100">
+    <div id="root"></div>
 
-    <!-- Header -->
-    <header class="bg-blue-600 text-white shadow-md">
-        <div class="container mx-auto px-4 py-6">
-            <h1 class="text-2xl font-bold flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-                各系所成績分佈分析系統
-            </h1>
-            <p class="mt-2 text-blue-100 text-sm">請上傳 CSV 檔案以生成學院、系所通過率與分數區間報表</p>
-        </div>
-    </header>
+    <script type="text/babel">
+        const { useState, useEffect } = React;
 
-    <!-- Main Content -->
-    <main class="container mx-auto px-4 py-8">
-        
-        <!-- Upload Section -->
-        <div class="bg-white rounded-xl shadow-sm p-6 mb-8 border border-gray-100">
-            <label class="block mb-2 text-sm font-medium text-gray-900">上傳資料檔案 (.csv)</label>
-            <div class="flex items-center justify-center w-full">
-                <label for="csv-upload" class="flex flex-col items-center justify-center w-full h-32 border-2 border-blue-300 border-dashed rounded-lg cursor-pointer bg-blue-50 hover:bg-blue-100 transition-colors">
-                    <div class="flex flex-col items-center justify-center pt-5 pb-6">
-                        <svg class="w-8 h-8 mb-4 text-blue-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16">
-                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.017 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/>
-                        </svg>
-                        <p class="text-sm text-gray-500"><span class="font-semibold">點擊上傳</span> 或將檔案拖曳至此</p>
-                        <p class="text-xs text-gray-400 mt-1">支援格式：CSV (UTF-8)</p>
-                    </div>
-                    <input id="csv-upload" type="file" class="hidden" accept=".csv" />
-                </label>
-            </div>
-            <div id="error-msg" class="hidden mt-4 p-4 text-red-700 bg-red-100 rounded-lg text-sm"></div>
-        </div>
+        // --- 圖示組件定義 (取代 lucide-react import) ---
+        const IconBase = ({ size = 24, children, className = "" }) => (
+            <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                width={size} 
+                height={size} 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                className={className}
+            >
+                {children}
+            </svg>
+        );
 
-        <!-- Dashboard (Hidden initially) -->
-        <div id="dashboard" class="hidden space-y-8">
-            
-            <!-- Summary Cards -->
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                    <h3 class="text-gray-500 text-sm font-medium">總學生數</h3>
-                    <p class="text-3xl font-bold text-gray-800 mt-2" id="total-students">0</p>
-                </div>
-                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                    <h3 class="text-gray-500 text-sm font-medium">總通過率 (≥60分)</h3>
-                    <p class="text-3xl font-bold text-green-600 mt-2" id="overall-pass-rate">0%</p>
-                </div>
-                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                    <h3 class="text-gray-500 text-sm font-medium">學院數量</h3>
-                    <p class="text-3xl font-bold text-purple-600 mt-2" id="college-count">0</p>
-                </div>
-                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                    <h3 class="text-gray-500 text-sm font-medium">系所數量</h3>
-                    <p class="text-3xl font-bold text-blue-600 mt-2" id="dept-count">0</p>
-                </div>
-            </div>
+        const Plus = (props) => <IconBase {...props}><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></IconBase>;
+        const Search = (props) => <IconBase {...props}><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></IconBase>;
+        const FileText = (props) => <IconBase {...props}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></IconBase>;
+        const Trash2 = (props) => <IconBase {...props}><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></IconBase>;
+        const User = (props) => <IconBase {...props}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></IconBase>;
+        const Calendar = (props) => <IconBase {...props}><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></IconBase>;
+        const Building = (props) => <IconBase {...props}><rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect><line x1="9" y1="22" x2="9" y2="12"></line><line x1="15" y1="12" x2="15" y2="22"></line><line x1="15" y1="2" x2="15" y2="22"></line><line x1="4" y1="10" x2="20" y2="10"></line></IconBase>;
+        const Hash = (props) => <IconBase {...props}><line x1="4" y1="9" x2="20" y2="9"></line><line x1="4" y1="15" x2="20" y2="15"></line><line x1="10" y1="3" x2="8" y2="21"></line><line x1="16" y1="3" x2="14" y2="21"></line></IconBase>;
+        const FileIcon = (props) => <IconBase {...props}><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></IconBase>;
+        const Filter = (props) => <IconBase {...props}><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></IconBase>;
+        const X = (props) => <IconBase {...props}><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></IconBase>;
+        const UserCheck = (props) => <IconBase {...props}><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><polyline points="17 11 19 13 23 9"></polyline></IconBase>;
+        const AlertTriangle = (props) => <IconBase {...props}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></IconBase>;
 
-            <!-- Pass Rate Charts Row -->
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <!-- College Pass Rate Chart -->
-                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                    <h3 class="text-lg font-bold text-gray-800 mb-4">各學院通過率 (%)</h3>
-                    <canvas id="collegePassRateChart"></canvas>
-                </div>
-                <!-- Dept Pass Rate Chart -->
-                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                    <h3 class="text-lg font-bold text-gray-800 mb-4">各系所通過率 (%)</h3>
-                    <canvas id="passRateChart"></canvas>
-                </div>
-            </div>
+        // --- 主程式 ---
+        function App() {
+            // 初始資料狀態
+            const [records, setRecords] = useState(() => {
+                const saved = localStorage.getItem('docRecords');
+                return saved ? JSON.parse(saved) : [];
+            });
 
-            <!-- Distribution Chart (Full Width) -->
-            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                <h3 class="text-lg font-bold text-gray-800 mb-4">各系所分數區間人數堆疊圖</h3>
-                <div class="h-96">
-                    <canvas id="distChart"></canvas>
-                </div>
-            </div>
+            // 表單輸入狀態
+            const [formData, setFormData] = useState({
+                name: '',
+                registrant: '',
+                unit: '',
+                docType: '公文',
+                docNumber: '',
+                date: new Date().toISOString().split('T')[0]
+            });
 
-            <!-- Detailed Table -->
-            <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                <div class="p-6 border-b border-gray-100 flex justify-between items-center">
-                    <h3 class="text-lg font-bold text-gray-800">各系所詳細數據表</h3>
-                    <button onclick="exportTableToCSV()" class="px-4 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition">匯出報表 (CSV)</button>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-sm text-left text-gray-500">
-                        <thead class="text-xs text-gray-700 uppercase bg-gray-50">
-                            <tr>
-                                <th scope="col" class="px-6 py-3">學院</th>
-                                <th scope="col" class="px-6 py-3">系所名稱</th>
-                                <th scope="col" class="px-6 py-3 text-center">總人數</th>
-                                <th scope="col" class="px-6 py-3 text-center text-green-700 bg-green-50">通過率 (≥60)</th>
-                                <th scope="col" class="px-6 py-3 text-center">0-29分</th>
-                                <th scope="col" class="px-6 py-3 text-center">30-50分</th>
-                                <th scope="col" class="px-6 py-3 text-center">51-60分</th>
-                                <th scope="col" class="px-6 py-3 text-center">61-80分</th>
-                                <th scope="col" class="px-6 py-3 text-center">81-90分</th>
-                                <th scope="col" class="px-6 py-3 text-center">91-100分</th>
-                                <th scope="col" class="px-6 py-3 text-center text-gray-400">其他分數</th>
-                            </tr>
-                        </thead>
-                        <tbody id="stats-table-body">
-                            <!-- Rows will be inserted here -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </main>
+            // 搜尋與介面狀態
+            const [searchTerm, setSearchTerm] = useState('');
+            const [searchDate, setSearchDate] = useState('');
+            const [activeTab, setActiveTab] = useState('register');
+            const [notification, setNotification] = useState(null);
 
-    <script>
-        // Global variables for charts to allow destruction/updating
-        let passRateChartInstance = null;
-        let collegePassRateChartInstance = null;
-        let distChartInstance = null;
-        let exportData = [];
+            // 刪除確認視窗狀態
+            const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+            const [recordToDelete, setRecordToDelete] = useState(null);
 
-        document.getElementById('csv-upload').addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (!file) return;
+            // 當資料變動時，儲存到 LocalStorage
+            useEffect(() => {
+                localStorage.setItem('docRecords', JSON.stringify(records));
+            }, [records]);
 
-            const reader = new FileReader();
-            reader.onload = function(event) {
-                const csvData = event.target.result;
-                parseCSV(csvData);
+            // 處理表單輸入
+            const handleInputChange = (e) => {
+                const { name, value } = e.target;
+                setFormData(prev => ({
+                    ...prev,
+                    [name]: value
+                }));
             };
-            reader.readAsText(file, 'UTF-8'); 
-        });
 
-        function parseCSV(csv) {
-            Papa.parse(csv, {
-                header: true,
-                skipEmptyLines: true,
-                complete: function(results) {
-                    if (results.errors.length > 0 && results.data.length === 0) {
-                        showError("解析檔案時發生錯誤，請確認格式正確。");
-                        return;
-                    }
-                    processData(results.data);
-                }
-            });
-        }
-
-        function showError(msg) {
-            const el = document.getElementById('error-msg');
-            el.innerText = msg;
-            el.classList.remove('hidden');
-        }
-
-        function processData(data) {
-            const stats = {};
-            const collegeStats = {}; 
-            let totalStudentsAll = 0;
-            let totalPassAll = 0;
-
-            // Check if required columns exist
-            if (!data[0].hasOwnProperty('學系') || !data[0].hasOwnProperty('測驗成績')) {
-                showError("找不到必要的欄位：「學系」或「測驗成績」。請確認 CSV 表頭名稱正確。");
-                return;
-            }
-            
-            const hasCollegeCol = data[0].hasOwnProperty('學院');
-
-            document.getElementById('error-msg').classList.add('hidden');
-
-            data.forEach(row => {
-                const dept = row['學系']?.trim();
-                const college = hasCollegeCol ? (row['學院']?.trim() || "未知學院") : "未知學院";
-                const scoreStr = row['測驗成績'];
-                
-                if (!dept || scoreStr === undefined || scoreStr === "") return;
-
-                const score = parseFloat(scoreStr);
-                if (isNaN(score)) return;
-
-                // --- Department Stats ---
-                if (!stats[dept]) {
-                    stats[dept] = {
-                        name: dept,
-                        college: college,
-                        total: 0,
-                        pass: 0,
-                        r0_29: 0, r30_50: 0, r51_60: 0,
-                        r61_80: 0, r81_90: 0, r91_100: 0, other: 0 
-                    };
+            // 提交表單
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                if (!formData.name || !formData.docNumber || !formData.registrant) {
+                    showNotification('請填寫完整資訊 (姓名、登記者與單號為必填)', 'error');
+                    return;
                 }
 
-                stats[dept].total++;
-                
-                // --- College Stats ---
-                if (!collegeStats[college]) {
-                    collegeStats[college] = { name: college, total: 0, pass: 0 };
-                }
-                collegeStats[college].total++;
+                const newRecord = {
+                    id: Date.now(),
+                    ...formData,
+                    createdAt: new Date().toLocaleString()
+                };
 
-                totalStudentsAll++;
-
-                // Pass calculation
-                const isPass = score >= 60;
-                if (isPass) {
-                    stats[dept].pass++;
-                    collegeStats[college].pass++;
-                    totalPassAll++;
-                }
-
-                // Ranges
-                if (score >= 0 && score <= 29) stats[dept].r0_29++;
-                else if (score >= 30 && score <= 50) stats[dept].r30_50++;
-                else if (score >= 51 && score <= 60) stats[dept].r51_60++;
-                else if (score >= 61 && score <= 80) stats[dept].r61_80++;
-                else if (score >= 81 && score <= 90) stats[dept].r81_90++;
-                else if (score >= 91 && score <= 100) stats[dept].r91_100++;
-                else stats[dept].other++;
-            });
-
-            renderDashboard(stats, collegeStats, totalStudentsAll, totalPassAll);
-        }
-
-        function renderDashboard(stats, collegeStats, totalStudents, totalPass) {
-            document.getElementById('dashboard').classList.remove('hidden');
-
-            // 1. Update Summary
-            document.getElementById('total-students').innerText = totalStudents;
-            const overallRate = totalStudents > 0 ? ((totalPass / totalStudents) * 100).toFixed(1) : 0;
-            document.getElementById('overall-pass-rate').innerText = `${overallRate}%`;
-            document.getElementById('dept-count').innerText = Object.keys(stats).length;
-            document.getElementById('college-count').innerText = Object.keys(collegeStats).length;
-
-            // Prepare Data Arrays
-            const sortedDepts = Object.values(stats).sort((a, b) => b.total - a.total); 
-            const sortedColleges = Object.values(collegeStats).sort((a, b) => b.total - a.total);
-
-            // 2. Render Table
-            const tbody = document.getElementById('stats-table-body');
-            tbody.innerHTML = '';
-            exportData = []; 
-
-            sortedDepts.forEach(dept => {
-                const passRate = dept.total > 0 ? ((dept.pass / dept.total) * 100).toFixed(1) : 0;
-                
-                exportData.push({
-                    "學院": dept.college,
-                    "系所": dept.name,
-                    "總人數": dept.total,
-                    "通過率(%)": passRate,
-                    "0-29分": dept.r0_29,
-                    "30-50分": dept.r30_50,
-                    "51-60分": dept.r51_60,
-                    "61-80分": dept.r61_80,
-                    "81-90分": dept.r81_90,
-                    "91-100分": dept.r91_100,
-                    "其他": dept.other
+                setRecords([newRecord, ...records]);
+                setFormData({
+                    name: '',
+                    registrant: '',
+                    unit: '',
+                    docType: '公文',
+                    docNumber: '',
+                    date: new Date().toISOString().split('T')[0]
                 });
+                showNotification('文件登記成功！', 'success');
+            };
 
-                const tr = document.createElement('tr');
-                tr.className = "bg-white border-b hover:bg-gray-50";
-                tr.innerHTML = `
-                    <td class="px-6 py-4 text-gray-500">${dept.college}</td>
-                    <th scope="row" class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap">${dept.name}</th>
-                    <td class="px-6 py-4 text-center">${dept.total}</td>
-                    <td class="px-6 py-4 text-center font-bold text-green-600">${passRate}%</td>
-                    <td class="px-6 py-4 text-center text-gray-600">${dept.r0_29}</td>
-                    <td class="px-6 py-4 text-center text-gray-600">${dept.r30_50}</td>
-                    <td class="px-6 py-4 text-center text-gray-600">${dept.r51_60}</td>
-                    <td class="px-6 py-4 text-center text-gray-600">${dept.r61_80}</td>
-                    <td class="px-6 py-4 text-center text-gray-600">${dept.r81_90}</td>
-                    <td class="px-6 py-4 text-center text-gray-600">${dept.r91_100}</td>
-                    <td class="px-6 py-4 text-center text-gray-400 text-xs">${dept.other}</td>
-                `;
-                tbody.appendChild(tr);
+            // 點擊刪除按鈕
+            const handleDeleteClick = (id) => {
+                setRecordToDelete(id);
+                setDeleteModalOpen(true);
+            };
+
+            // 確認刪除執行
+            const confirmDelete = () => {
+                if (recordToDelete) {
+                    setRecords(records.filter(r => r.id !== recordToDelete));
+                    showNotification('紀錄已刪除', 'success');
+                    setDeleteModalOpen(false);
+                    setRecordToDelete(null);
+                }
+            };
+
+            // 顯示通知
+            const showNotification = (msg, type) => {
+                setNotification({ msg, type });
+                setTimeout(() => setNotification(null), 3000);
+            };
+
+            // 篩選邏輯
+            const filteredRecords = records.filter(record => {
+                const matchName = record.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                                record.docNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                (record.registrant && record.registrant.toLowerCase().includes(searchTerm.toLowerCase()));
+                const matchDate = searchDate ? record.date === searchDate : true;
+                return matchName && matchDate;
             });
 
-            // 3. Render Charts
-            renderCharts(sortedDepts, sortedColleges);
+            const unitOptions = ['生物資訊與醫學工程學系', '資訊工程學系', '人工智慧學系', '資訊傳播學系', '總務處', '研發處', '其他'];
+            const typeOptions = ['公文', '合約', '發票', '請款單', '報告', '其他'];
+
+            return (
+                <div className="min-h-screen bg-slate-100 font-sans text-slate-800 relative">
+                    {/* 刪除確認視窗 Modal */}
+                    {deleteModalOpen && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 animate-fade-in">
+                            <div className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full transform transition-all scale-100">
+                                <div className="flex flex-col items-center text-center gap-4">
+                                    <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center text-red-600">
+                                        <AlertTriangle size={24} />
+                                    </div>
+                                    <h3 className="text-xl font-bold text-slate-800">確定要刪除嗎？</h3>
+                                    <p className="text-slate-500">這筆紀錄將被永久移除，此動作無法復原。</p>
+                                    <div className="flex gap-3 w-full mt-2">
+                                        <button onClick={() => setDeleteModalOpen(false)} className="flex-1 py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition">取消</button>
+                                        <button onClick={confirmDelete} className="flex-1 py-2 px-4 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium shadow-md transition">確認刪除</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 頂部標題列 */}
+                    <header className="bg-blue-700 text-white shadow-lg">
+                        <div className="max-w-6xl mx-auto px-4 py-6 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <FileText size={32} />
+                                <div>
+                                    <h1 className="text-2xl font-bold tracking-wide">文件收發登記系統</h1>
+                                    <p className="text-blue-200 text-sm">內部行政管理專用</p>
+                                </div>
+                            </div>
+                            <div className="text-right hidden sm:block">
+                                <p className="text-sm opacity-80">今日日期</p>
+                                <p className="font-mono font-bold">{new Date().toLocaleDateString()}</p>
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* 主要內容區塊 */}
+                    <main className="max-w-6xl mx-auto px-4 py-8">
+                        {notification && (
+                            <div className={`fixed top-4 right-4 px-6 py-3 rounded-lg shadow-xl text-white transform transition-all duration-500 z-50 ${notification.type === 'error' ? 'bg-red-500' : 'bg-green-600'}`}>
+                                {notification.msg}
+                            </div>
+                        )}
+
+                        <div className="flex gap-4 mb-6">
+                            <button onClick={() => setActiveTab('register')} className={`flex-1 py-3 px-4 rounded-lg shadow-sm font-bold flex items-center justify-center gap-2 transition-all ${activeTab === 'register' ? 'bg-white text-blue-700 ring-2 ring-blue-500' : 'bg-slate-200 text-slate-500 hover:bg-slate-300'}`}>
+                                <Plus size={20} /> 新增文件登記
+                            </button>
+                            <button onClick={() => setActiveTab('search')} className={`flex-1 py-3 px-4 rounded-lg shadow-sm font-bold flex items-center justify-center gap-2 transition-all ${activeTab === 'search' ? 'bg-white text-blue-700 ring-2 ring-blue-500' : 'bg-slate-200 text-slate-500 hover:bg-slate-300'}`}>
+                                <Search size={20} /> 查詢與紀錄 ({records.length})
+                            </button>
+                        </div>
+
+                        {activeTab === 'register' && (
+                            <div className="bg-white rounded-xl shadow-md p-6 sm:p-8 animate-fade-in">
+                                <h2 className="text-xl font-bold text-slate-700 mb-6 flex items-center gap-2 border-b pb-4"><FileText className="text-blue-600" /> 填寫登記資料</h2>
+                                <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-2">
+                                        <label className="flex items-center gap-2 text-sm font-semibold text-slate-600"><User size={16} /> 文件人/姓名</label>
+                                        <input type="text" name="name" value={formData.name} onChange={handleInputChange} placeholder="請輸入經手人姓名" className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" required />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="flex items-center gap-2 text-sm font-semibold text-slate-600"><UserCheck size={16} /> 登記者姓名</label>
+                                        <input type="text" name="registrant" value={formData.registrant} onChange={handleInputChange} placeholder="請輸入登記者姓名" className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" required />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="flex items-center gap-2 text-sm font-semibold text-slate-600"><Building size={16} /> 所屬單位</label>
+                                        <div className="relative">
+                                            <input list="units" name="unit" value={formData.unit} onChange={handleInputChange} placeholder="選擇或輸入單位" className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" />
+                                            <datalist id="units">{unitOptions.map(opt => <option key={opt} value={opt} />)}</datalist>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="flex items-center gap-2 text-sm font-semibold text-slate-600"><Hash size={16} /> 文件單號</label>
+                                        <input type="text" name="docNumber" value={formData.docNumber} onChange={handleInputChange} placeholder="例如: DOC-2023-001" className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition font-mono" required />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="flex items-center gap-2 text-sm font-semibold text-slate-600"><FileIcon size={16} /> 文件類型</label>
+                                        <select name="docType" value={formData.docType} onChange={handleInputChange} className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white">
+                                            {typeOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="flex items-center gap-2 text-sm font-semibold text-slate-600"><Calendar size={16} /> 登記日期</label>
+                                        <input type="date" name="date" value={formData.date} onChange={handleInputChange} className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" required />
+                                    </div>
+                                    <div className="md:col-span-2 pt-4">
+                                        <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-md hover:shadow-lg transition transform active:scale-95 flex items-center justify-center gap-2"><Plus size={20} /> 確認登記</button>
+                                    </div>
+                                </form>
+                            </div>
+                        )}
+
+                        {activeTab === 'search' && (
+                            <div className="space-y-6 animate-fade-in">
+                                <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                                    <h3 className="text-sm font-bold text-slate-500 mb-3 uppercase tracking-wider flex items-center gap-2"><Filter size={16} /> 進階篩選</h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="relative">
+                                            <Search className="absolute left-3 top-3 text-slate-400" size={20} />
+                                            <input type="text" placeholder="搜尋姓名、登記者或單號..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                                            {searchTerm && <button onClick={() => setSearchTerm('')} className="absolute right-3 top-3 text-slate-400 hover:text-slate-600"><X size={16} /></button>}
+                                        </div>
+                                        <div className="flex gap-2 items-center">
+                                            <span className="text-slate-500 whitespace-nowrap">日期：</span>
+                                            <input type="date" value={searchDate} onChange={(e) => setSearchDate(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                                            {searchDate && <button onClick={() => setSearchDate('')} className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-50 rounded-full transition" title="清除日期"><X size={20} /></button>}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="bg-white rounded-xl shadow-md overflow-hidden">
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left border-collapse">
+                                            <thead>
+                                                <tr className="bg-slate-50 text-slate-600 text-sm border-b border-slate-200">
+                                                    <th className="p-4 font-bold">登記日期</th>
+                                                    <th className="p-4 font-bold">文件單號</th>
+                                                    <th className="p-4 font-bold">類型</th>
+                                                    <th className="p-4 font-bold">經手人</th>
+                                                    <th className="p-4 font-bold">單位</th>
+                                                    <th className="p-4 font-bold text-blue-600">登記者</th>
+                                                    <th className="p-4 font-bold text-center">操作</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {filteredRecords.length > 0 ? (
+                                                    filteredRecords.map((record) => (
+                                                        <tr key={record.id} className="hover:bg-blue-50 transition group">
+                                                            <td className="p-4 text-slate-600 whitespace-nowrap">{record.date}</td>
+                                                            <td className="p-4 font-mono font-medium text-blue-700">{record.docNumber}</td>
+                                                            <td className="p-4"><span className="px-2 py-1 bg-slate-100 text-slate-600 rounded text-xs font-bold border border-slate-200">{record.docType}</span></td>
+                                                            <td className="p-4 font-medium text-slate-800">{record.name}</td>
+                                                            <td className="p-4 text-slate-500">{record.unit || '-'}</td>
+                                                            <td className="p-4 text-slate-500 bg-slate-50/50">{record.registrant || <span className="text-slate-300 text-xs italic">未填寫</span>}</td>
+                                                            <td className="p-4 text-center">
+                                                                <button onClick={() => handleDeleteClick(record.id)} className="text-slate-400 hover:text-red-600 p-2 rounded-full hover:bg-red-50 transition" title="刪除"><Trash2 size={18} /></button>
+                                                            </td>
+                                                        </tr>
+                                                    ))
+                                                ) : (
+                                                    <tr>
+                                                        <td colSpan="7" className="p-8 text-center text-slate-400">
+                                                            <div className="flex flex-col items-center gap-2"><Search size={40} className="opacity-20" /><p>查無相關紀錄</p></div>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div className="p-4 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 flex justify-between">
+                                        <span>顯示 {filteredRecords.length} 筆資料 (共 {records.length} 筆)</span>
+                                        <span>系統版本 v1.2</span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </main>
+                </div>
+            );
         }
 
-        function renderCharts(deptData, collegeData) {
-            // --- College Pass Rate Chart ---
-            const collegeLabels = collegeData.map(d => d.name);
-            const collegePassRates = collegeData.map(d => ((d.pass / d.total) * 100).toFixed(1));
-
-            const ctxCollege = document.getElementById('collegePassRateChart').getContext('2d');
-            if (collegePassRateChartInstance) collegePassRateChartInstance.destroy();
-
-            collegePassRateChartInstance = new Chart(ctxCollege, {
-                type: 'bar',
-                plugins: [ChartDataLabels],
-                data: {
-                    labels: collegeLabels,
-                    datasets: [{
-                        label: '通過率 (%)',
-                        data: collegePassRates,
-                        backgroundColor: 'rgba(124, 58, 237, 0.7)',
-                        borderColor: 'rgb(124, 58, 237)',
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    scales: { y: { beginAtZero: true, max: 100 } },
-                    plugins: { 
-                        legend: { display: false },
-                        title: { display: true, text: '依學院統計' },
-                        datalabels: {
-                            anchor: 'end',
-                            align: 'top',
-                            color: '#4b5563',
-                            font: { weight: 'bold' },
-                            formatter: function(value) { return value + '%'; }
-                        }
-                    },
-                    layout: { padding: { top: 25 } }
-                }
-            });
-
-            // --- Dept Pass Rate Chart ---
-            const deptLabels = deptData.map(d => d.name);
-            const deptPassRates = deptData.map(d => ((d.pass / d.total) * 100).toFixed(1));
-            
-            const ctxPass = document.getElementById('passRateChart').getContext('2d');
-            if (passRateChartInstance) passRateChartInstance.destroy();
-            
-            passRateChartInstance = new Chart(ctxPass, {
-                type: 'bar',
-                data: {
-                    labels: deptLabels,
-                    datasets: [{
-                        label: '通過率 (%)',
-                        data: deptPassRates,
-                        backgroundColor: 'rgba(59, 130, 246, 0.7)',
-                        borderColor: 'rgb(59, 130, 246)',
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    scales: { y: { beginAtZero: true, max: 100 } },
-                    plugins: { legend: { display: false }, title: { display: true, text: '依系所統計' } }
-                }
-            });
-
-            // --- Distribution Stacked Chart ---
-            const ctxDist = document.getElementById('distChart').getContext('2d');
-            if (distChartInstance) distChartInstance.destroy();
-
-            distChartInstance = new Chart(ctxDist, {
-                type: 'bar',
-                data: {
-                    labels: deptLabels,
-                    datasets: [
-                        { label: '0-29分', data: deptData.map(d => d.r0_29), backgroundColor: '#6B7280' }, 
-                        { label: '30-50分', data: deptData.map(d => d.r30_50), backgroundColor: '#EF4444' }, 
-                        { label: '51-60分', data: deptData.map(d => d.r51_60), backgroundColor: '#F59E0B' }, 
-                        { label: '61-80分', data: deptData.map(d => d.r61_80), backgroundColor: '#3B82F6' }, 
-                        { label: '81-90分', data: deptData.map(d => d.r81_90), backgroundColor: '#6366F1' }, 
-                        { label: '91-100分', data: deptData.map(d => d.r91_100), backgroundColor: '#10B981' }, 
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: { 
-                        x: { stacked: true }, 
-                        y: { 
-                            stacked: true, 
-                            beginAtZero: true, 
-                            max: 100 // 設定最大值為 100
-                        } 
-                    }
-                }
-            });
-        }
-
-        function exportTableToCSV() {
-            if (exportData.length === 0) return;
-            const csv = Papa.unparse(exportData);
-            const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement("a");
-            const url = URL.createObjectURL(blob);
-            link.setAttribute("href", url);
-            link.setAttribute("download", "系所成績分佈分析報表.csv");
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
     </script>
 </body>
 </html>
