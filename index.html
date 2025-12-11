@@ -1,0 +1,411 @@
+import React, { useState, useEffect } from 'react';
+import { Plus, Search, FileText, Trash2, User, Calendar, Building, Hash, File, Filter, X, UserCheck, AlertTriangle } from 'lucide-react';
+
+export default function App() {
+  // 初始資料狀態
+  const [records, setRecords] = useState(() => {
+    const saved = localStorage.getItem('docRecords');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // 表單輸入狀態
+  const [formData, setFormData] = useState({
+    name: '',
+    registrant: '',
+    unit: '',
+    docType: '公文',
+    docNumber: '',
+    date: new Date().toISOString().split('T')[0]
+  });
+
+  // 搜尋與介面狀態
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchDate, setSearchDate] = useState('');
+  const [activeTab, setActiveTab] = useState('register');
+  const [notification, setNotification] = useState(null);
+
+  // 刪除確認視窗狀態
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [recordToDelete, setRecordToDelete] = useState(null);
+
+  // 當資料變動時，儲存到 LocalStorage
+  useEffect(() => {
+    localStorage.setItem('docRecords', JSON.stringify(records));
+  }, [records]);
+
+  // 處理表單輸入
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  // 提交表單
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!formData.name || !formData.docNumber || !formData.registrant) {
+      showNotification('請填寫完整資訊 (姓名、登記者與單號為必填)', 'error');
+      return;
+    }
+
+    const newRecord = {
+      id: Date.now(),
+      ...formData,
+      createdAt: new Date().toLocaleString()
+    };
+
+    setRecords([newRecord, ...records]);
+    setFormData({
+      name: '',
+      registrant: '',
+      unit: '',
+      docType: '公文',
+      docNumber: '',
+      date: new Date().toISOString().split('T')[0]
+    });
+    showNotification('文件登記成功！', 'success');
+  };
+
+  // 點擊刪除按鈕 (開啟確認視窗)
+  const handleDeleteClick = (id) => {
+    setRecordToDelete(id);
+    setDeleteModalOpen(true);
+  };
+
+  // 確認刪除執行
+  const confirmDelete = () => {
+    if (recordToDelete) {
+      setRecords(records.filter(r => r.id !== recordToDelete));
+      showNotification('紀錄已刪除', 'success');
+      setDeleteModalOpen(false);
+      setRecordToDelete(null);
+    }
+  };
+
+  // 顯示通知
+  const showNotification = (msg, type) => {
+    setNotification({ msg, type });
+    setTimeout(() => setNotification(null), 3000);
+  };
+
+  // 篩選邏輯
+  const filteredRecords = records.filter(record => {
+    const matchName = record.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                      record.docNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                      (record.registrant && record.registrant.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchDate = searchDate ? record.date === searchDate : true;
+    return matchName && matchDate;
+  });
+
+  const unitOptions = ['生物資訊與醫學工程學系', '資訊工程學系', '人工智慧學系', '資訊傳播學系', '總務處', '研發處'];
+  const typeOptions = ['公文', '各類申請單', '計劃書', '請購核銷單', '報告', '其他'];
+
+  return (
+    <div className="min-h-screen bg-slate-100 font-sans text-slate-800 relative">
+      {/* 刪除確認視窗 Modal */}
+      {deleteModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full transform transition-all scale-100">
+            <div className="flex flex-col items-center text-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center text-red-600">
+                <AlertTriangle size={24} />
+              </div>
+              <h3 className="text-xl font-bold text-slate-800">確定要刪除嗎？</h3>
+              <p className="text-slate-500">
+                這筆紀錄將被永久移除，此動作無法復原。
+              </p>
+              <div className="flex gap-3 w-full mt-2">
+                <button
+                  onClick={() => setDeleteModalOpen(false)}
+                  className="flex-1 py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  className="flex-1 py-2 px-4 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium shadow-md transition"
+                >
+                  確認刪除
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 頂部標題列 */}
+      <header className="bg-blue-700 text-white shadow-lg">
+        <div className="max-w-6xl mx-auto px-4 py-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <FileText size={32} />
+            <div>
+              <h1 className="text-2xl font-bold tracking-wide">文件收發登記系統</h1>
+              <p className="text-blue-200 text-sm">內部行政管理專用</p>
+            </div>
+          </div>
+          <div className="text-right hidden sm:block">
+            <p className="text-sm opacity-80">今日日期</p>
+            <p className="font-mono font-bold">{new Date().toLocaleDateString()}</p>
+          </div>
+        </div>
+      </header>
+
+      {/* 主要內容區塊 */}
+      <main className="max-w-6xl mx-auto px-4 py-8">
+        
+        {/* 通知訊息 */}
+        {notification && (
+          <div className={`fixed top-4 right-4 px-6 py-3 rounded-lg shadow-xl text-white transform transition-all duration-500 z-50 ${notification.type === 'error' ? 'bg-red-500' : 'bg-green-600'}`}>
+            {notification.msg}
+          </div>
+        )}
+
+        {/* 分頁切換按鈕 */}
+        <div className="flex gap-4 mb-6">
+          <button
+            onClick={() => setActiveTab('register')}
+            className={`flex-1 py-3 px-4 rounded-lg shadow-sm font-bold flex items-center justify-center gap-2 transition-all ${activeTab === 'register' ? 'bg-white text-blue-700 ring-2 ring-blue-500' : 'bg-slate-200 text-slate-500 hover:bg-slate-300'}`}
+          >
+            <Plus size={20} />
+            新增文件登記
+          </button>
+          <button
+            onClick={() => setActiveTab('search')}
+            className={`flex-1 py-3 px-4 rounded-lg shadow-sm font-bold flex items-center justify-center gap-2 transition-all ${activeTab === 'search' ? 'bg-white text-blue-700 ring-2 ring-blue-500' : 'bg-slate-200 text-slate-500 hover:bg-slate-300'}`}
+          >
+            <Search size={20} />
+            查詢與紀錄 ({records.length})
+          </button>
+        </div>
+
+        {/* 內容呈現：登記表單 */}
+        {activeTab === 'register' && (
+          <div className="bg-white rounded-xl shadow-md p-6 sm:p-8 animate-fade-in">
+            <h2 className="text-xl font-bold text-slate-700 mb-6 flex items-center gap-2 border-b pb-4">
+              <FileText className="text-blue-600" />
+              填寫登記資料
+            </h2>
+            
+            <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* 經手人/姓名 */}
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+                  <User size={16} /> 文件人/姓名
+                </label>
+                <input
+                  type="text"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  placeholder="請輸入經手人姓名"
+                  className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  required
+                />
+              </div>
+
+              {/* 登記者姓名 */}
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+                  <UserCheck size={16} /> 登記者姓名
+                </label>
+                <input
+                  type="text"
+                  name="registrant"
+                  value={formData.registrant}
+                  onChange={handleInputChange}
+                  placeholder="請輸入登記者姓名"
+                  className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  required
+                />
+              </div>
+
+              {/* 單位 */}
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+                  <Building size={16} /> 所屬單位
+                </label>
+                <div className="relative">
+                  <input
+                    list="units"
+                    name="unit"
+                    value={formData.unit}
+                    onChange={handleInputChange}
+                    placeholder="選擇或輸入單位"
+                    className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  />
+                  <datalist id="units">
+                    {unitOptions.map(opt => <option key={opt} value={opt} />)}
+                  </datalist>
+                </div>
+              </div>
+
+              {/* 文件單號 */}
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+                  <Hash size={16} /> 文件單號
+                </label>
+                <input
+                  type="text"
+                  name="docNumber"
+                  value={formData.docNumber}
+                  onChange={handleInputChange}
+                  placeholder="例如: DOC-2023-001"
+                  className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition font-mono"
+                  required
+                />
+              </div>
+
+              {/* 文件類型 */}
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+                  <File size={16} /> 文件類型
+                </label>
+                <select
+                  name="docType"
+                  value={formData.docType}
+                  onChange={handleInputChange}
+                  className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white"
+                >
+                  {typeOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
+              </div>
+
+              {/* 日期 */}
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+                  <Calendar size={16} /> 登記日期
+                </label>
+                <input
+                  type="date"
+                  name="date"
+                  value={formData.date}
+                  onChange={handleInputChange}
+                  className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  required
+                />
+              </div>
+
+              <div className="md:col-span-2 pt-4">
+                <button
+                  type="submit"
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-md hover:shadow-lg transition transform active:scale-95 flex items-center justify-center gap-2"
+                >
+                  <Plus size={20} />
+                  確認登記
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* 內容呈現：查詢列表 */}
+        {activeTab === 'search' && (
+          <div className="space-y-6 animate-fade-in">
+            {/* 搜尋過濾器 */}
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+              <h3 className="text-sm font-bold text-slate-500 mb-3 uppercase tracking-wider flex items-center gap-2">
+                <Filter size={16} /> 進階篩選
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-3 text-slate-400" size={20} />
+                  <input
+                    type="text"
+                    placeholder="搜尋姓名、登記者或單號..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                  {searchTerm && (
+                    <button onClick={() => setSearchTerm('')} className="absolute right-3 top-3 text-slate-400 hover:text-slate-600">
+                      <X size={16} />
+                    </button>
+                  )}
+                </div>
+                <div className="flex gap-2 items-center">
+                  <span className="text-slate-500 whitespace-nowrap">日期：</span>
+                  <input
+                    type="date"
+                    value={searchDate}
+                    onChange={(e) => setSearchDate(e.target.value)}
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                  {searchDate && (
+                    <button 
+                      onClick={() => setSearchDate('')}
+                      className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-50 rounded-full transition"
+                      title="清除日期"
+                    >
+                      <X size={20} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* 表格列表 */}
+            <div className="bg-white rounded-xl shadow-md overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-600 text-sm border-b border-slate-200">
+                      <th className="p-4 font-bold">登記日期</th>
+                      <th className="p-4 font-bold">文件單號</th>
+                      <th className="p-4 font-bold">類型</th>
+                      <th className="p-4 font-bold">經手人</th>
+                      <th className="p-4 font-bold">單位</th>
+                      <th className="p-4 font-bold text-blue-600">登記者</th>
+                      <th className="p-4 font-bold text-center">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredRecords.length > 0 ? (
+                      filteredRecords.map((record) => (
+                        <tr key={record.id} className="hover:bg-blue-50 transition group">
+                          <td className="p-4 text-slate-600 whitespace-nowrap">{record.date}</td>
+                          <td className="p-4 font-mono font-medium text-blue-700">{record.docNumber}</td>
+                          <td className="p-4">
+                            <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded text-xs font-bold border border-slate-200">
+                              {record.docType}
+                            </span>
+                          </td>
+                          <td className="p-4 font-medium text-slate-800">{record.name}</td>
+                          <td className="p-4 text-slate-500">{record.unit || '-'}</td>
+                          <td className="p-4 text-slate-500 bg-slate-50/50">{record.registrant || <span className="text-slate-300 text-xs italic">未填寫</span>}</td>
+                          <td className="p-4 text-center">
+                            <button
+                              onClick={() => handleDeleteClick(record.id)}
+                              className="text-slate-400 hover:text-red-600 p-2 rounded-full hover:bg-red-50 transition"
+                              title="刪除"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="7" className="p-8 text-center text-slate-400">
+                          <div className="flex flex-col items-center gap-2">
+                            <Search size={40} className="opacity-20" />
+                            <p>查無相關紀錄</p>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <div className="p-4 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 flex justify-between">
+                <span>顯示 {filteredRecords.length} 筆資料 (共 {records.length} 筆)</span>
+                <span>系統版本 v1.2</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
